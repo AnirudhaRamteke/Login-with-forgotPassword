@@ -12,6 +12,8 @@ to run this use commands
  
  
  before runnig please set env variable for gmail password in .env file.
+
  add mongodb database in config/key.js
+ 
  add email where required in code.
  
