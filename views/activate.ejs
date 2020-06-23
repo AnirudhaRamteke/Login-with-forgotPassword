@@ -1,0 +1,11 @@
+<div class="row">
+	<div class="col-md-12">
+		<form action="/users/activate/<%= activation_token %>" method="POST">
+          <legend>Activate Account</legend>
+          <% include ./partials/messages %>
+		  <div class="form-group">
+		    <button type="submit" class="btn btn-primary">Activate</button>
+		  </div>
+		</form>
+	</div>
+</div>
