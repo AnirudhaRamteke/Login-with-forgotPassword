@@ -13,6 +13,8 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  confirmed: Boolean,
+  emailActivationToken: String,
   resetPasswordToken: String,
   resetPasswordExpires: Date,
 
