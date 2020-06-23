@@ -61,35 +61,131 @@ router.post('/register', (req, res) => {
           password
         });
 
-        
         bcrypt.genSalt(10, (err, salt) => {
           bcrypt.hash(newUser.password, salt, (err, hash) => {
             if (err) throw err;
             newUser.password = hash;
+
+            
+
             newUser
               .save()
               .then(user => {
+
+                async.waterfall(
+                  [
+                    function(done){
+                      crypto.randomBytes(20, function(err, buf) {
+                        var activation_token = buf.toString('hex');
+                        done(err, activation_token);
+                      });
+                    },
+
+                    function(activation_token, done){
+                      user.emailActivationToken = activation_token;
+                      user.confirmed = false;
+                      
+                      user.save(function(err) {
+                        done(err, activation_token, user);
+                      });
+                    },
+                    function(activation_token, user, done) {
+                      var smtpTransport = nodemailer.createTransport({
+                        service: 'gmail', 
+                        auth: {
+                          user: 'YOUR EMAIL HERE',
+                          pass: process.env.GMAILPW
+                        }
+                      });
+                      var mailOptions = {
+                        to: user.email,
+                        from: 'noreply@gmail.com',
+                        subject: 'Node.js email verification',
+                        text: 
+                          'Please click on the following link, or paste this into your browser to verify your email :\n\n' +
+                          'http://' + req.headers.host + '/users/activate/' + activation_token + '\n\n' +
+                          'If you did not request this, please ignore this email and your password will remain unchanged.\n'
+                      };
+                      smtpTransport.sendMail(mailOptions, function(err) {
+                        console.log('mail sent');
+                        
+                        done(err, 'done');
+                      });
+                    }
+  
+
+                  ],
+                  function(err) {
+                    if (err) return next(err);
+                  }
+
+                );
+
                 req.flash(
                   'success_msg',
                   'You are now registered and can log in'
                 );
+                req.flash('success_msg', ' \n An e-mail has been sent to ' + user.email + ' for email verification.');
                 res.redirect('/users/login');
               })
               .catch(err => console.log(err));
           });
         });
+
+
+        
+       
       }
     });
   }
 });
 
+
+//activation email
+
+router.get('/activate/:activation_token', function(req, res) {
+  User.findOne({ emailActivationToken: req.params.activation_token }, function(err, user) {
+    if (!user) {
+      req.flash('error', 'Verification token is invalid or has expired.');
+      return res.redirect('/users/register');
+    }
+    res.render('activate', {activation_token: req.params.activation_token});
+  });
+});
+
+router.post('/activate/:activation_token', function(req, res) {
+  async.waterfall([
+    function(done) {
+      User.findOne({ emailActivationToken: req.params.activation_token }, function(err, user) {
+        if (!user) {
+          req.flash('error', 'Email Verification token is invalid or has expired.');
+          return res.redirect('back');
+        }
+        user.confirmed = true;
+        user.emailActivationToken = undefined;
+        user.save(function(err) {
+          req.flash('success_msgs', 'Success! Your email has been verified you can now login.');
+          req.logIn(user, function(err) {
+            done(err, user);
+          });
+        });
+
+      });
+    },
+  ], function(err) {
+    res.redirect('/');
+  });
+});
+
+
+
 // Login
 router.post('/login', (req, res, next) => {
-  passport.authenticate('local', {
-    successRedirect: '/dashboard',
-    failureRedirect: '/users/login',
-    failureFlash: true
-  })(req, res, next);
+    passport.authenticate('local', {
+      successRedirect: '/dashboard',
+      failureRedirect: '/users/login',
+      failureFlash: true
+    })(req, res, next);
 });
 
 // Logout
@@ -137,13 +233,13 @@ router.post('/forgot', function(req, res, next) {
       var smtpTransport = nodemailer.createTransport({
         service: 'gmail', 
         auth: {
-          user: 'YOUR GMAIL',
+          user: 'YOUR EMAIL HERE',
           pass: process.env.GMAILPW
         }
       });
       var mailOptions = {
         to: user.email,
-        from: 'YOUR GMAIL',
+        from: 'YOUR EMAIL HERE',
         subject: 'Node.js Password Reset',
         text: 'You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n' +
           'Please click on the following link, or paste this into your browser to complete the process:\n\n' +
@@ -208,13 +304,13 @@ router.post('/reset/:token', function(req, res) {
       var smtpTransport = nodemailer.createTransport({
         service: 'gmail', 
         auth: {
-          user: 'YOUR GMAIL',
+          user: 'YOUR EMAIL HERE',
           pass: process.env.GMAILPW
         }
       });
       var mailOptions = {
         to: user.email,
-        from: 'nganirudh2016@gmail.com',
+        from: 'YOUR EMAIL HERE',
         subject: 'Your password has been changed',
         text: 'Hello,\n\n' +
           'This is a confirmation that the password for your account ' + user.email + ' has just been changed.\n'
